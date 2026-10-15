@@ -9,10 +9,11 @@ namespace Infrastructure.Repositories;
 public class EventsRepository(AppDbContext dbContext) : IEventsRepository
 {
     private readonly AppDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    public async Task AddAsync(Events eventDetails, CancellationToken cancellationToken = default)
+    public async Task<long> AddAsync(Events eventDetails, CancellationToken cancellationToken = default)
     {
         await _dbContext.AppointmentEvent.AddAsync(eventDetails, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return eventDetails.EventId;
     }
 
     public async Task DeleteAsync(long eventId, CancellationToken cancellationToken = default)

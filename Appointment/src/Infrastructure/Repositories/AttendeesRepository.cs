@@ -8,10 +8,11 @@ namespace Infrastructure.Repositories;
 public class AttendeesRepository(AppDbContext dbContext) : IAttendeesRepository
 {
     private readonly AppDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    public async Task AddAsync(Attendees attendeeDetails, CancellationToken cancellationToken = default)
+    public async Task<long> AddAsync(Attendees attendeeDetails, CancellationToken cancellationToken = default)
     {
         await _dbContext.AppointmentAttendee.AddAsync(attendeeDetails, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return attendeeDetails.AttendeeId;
     }
     public async Task DeleteAsync(long attendeeId, CancellationToken cancellationToken = default)
     {
@@ -29,11 +30,12 @@ public class AttendeesRepository(AppDbContext dbContext) : IAttendeesRepository
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
     }
-    public async Task<Attendees?> GetByIdAsync(long attendeeId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Attendees?>> GetByIdAsync(long attendeeId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.AppointmentAttendee
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.AttendeeId == attendeeId, cancellationToken)
+            .Where(p => p.AttendeeId == attendeeId)
+            .ToListAsync(cancellationToken)            
             .ConfigureAwait(false);
     }
     public async Task UpdateAsync(Attendees attendeeDetails, CancellationToken cancellationToken = default)
