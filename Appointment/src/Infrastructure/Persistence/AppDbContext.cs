@@ -1,6 +1,7 @@
 ﻿
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace Infrastructure.Persistence;
 
@@ -35,15 +36,36 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Name).IsRequired();
             entity.Property(e => e.Email).IsRequired();
             entity.Property(e => e.Address).IsRequired();
+            entity.Property(e => e.IsAttending).IsRequired();
         });
 
         modelBuilder.Entity<EventAttendance>(entity =>
         {
             entity.ToTable("EventAttendance");
             entity.HasKey(e => e.EventAttendanceId);
-            entity.Property(e => e.EventId).IsRequired();
-            entity.Property(e => e.AttendeeId).IsRequired();
-            entity.Property(e => e.IsAttending).IsRequired();
+
+            // configure foreign keys and navigation properties
+            entity.HasOne(ea => ea.Event)
+                  .WithMany(e => e.EventAttendances)
+                  .HasForeignKey(ea => ea.EventId)
+                  .OnDelete(DeleteBehavior.Cascade)
+                  .IsRequired();
+
+            entity.HasOne(ea => ea.Attendee)
+                  .WithMany(a => a.EventAttendances)
+                  .HasForeignKey(ea => ea.AttendeeId)
+                  .OnDelete(DeleteBehavior.Cascade)
+                  .IsRequired();
+
+            // EF Core will not include EventId and AttendeeId on UPDATE statements.
+            entity.Property(e => e.EventId)
+                  .IsRequired()
+                  .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+
+            entity.Property(e => e.AttendeeId)
+                  .IsRequired()
+                  .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+            
         });
     }
 }

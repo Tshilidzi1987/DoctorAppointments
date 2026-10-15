@@ -6,4 +6,8 @@ public class Events
     public string Description { get; set; } = string.Empty;
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+
+    // Navigation: one Event -> many EventAttendance
+    public ICollection<EventAttendance> EventAttendances { get; set; } = [];
+
 }
