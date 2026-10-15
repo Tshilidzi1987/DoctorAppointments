@@ -1,9 +1,10 @@
-﻿using Application.Interfaces.Repositories;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore.InMemory;
+using Application.Interfaces.Repositories;
 using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Infrastructure.DependencyInjection;
 
@@ -14,13 +15,23 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
-        }
+        bool useInMemory = bool.TryParse(configuration["UseInMemoryDatabase"], out var parsed) && parsed;
 
-        services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
+        if (useInMemory)
+        {
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseInMemoryDatabase("AppDb_InMemory"));
+        }
+        else
+        {
+            string? connectionString = configuration.GetConnectionString("DefaultConnection");
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+            }
+
+            services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
+        }
 
         // Register repositories
         services.AddScoped<IAttendeesRepository, AttendeesRepository>();

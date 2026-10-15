@@ -16,34 +16,25 @@ public class EventAttendanceRepository(AppDbContext dbContext) : IEventAttendanc
 
     public async Task DeleteAsync(long eventAttendanceId, CancellationToken cancellationToken = default)
     {
-        EventAttendance? eventDetails = await _dbContext.AppointmentEventAttendance.FindAsync([eventAttendanceId, cancellationToken], cancellationToken: cancellationToken);
+        EventAttendance attendee = new() { EventAttendanceId = eventAttendanceId };
+        _dbContext.Entry(attendee).State = EntityState.Deleted;
 
-        if (eventDetails is not null)
+        try
         {
-            _dbContext.AppointmentEventAttendance.Remove(eventDetails);
             await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // If the row does not exist (concurrent delete), treat as success (no-op).
         }
     }
 
-    public async Task<IEnumerable<EventAttendance?>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<EventAttendance?>> GetByIdAsync(long eventId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.AppointmentEventAttendance
             .AsNoTracking()
+            .Where(p => p.EventId == eventId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-    }
-
-    public async Task<EventAttendance?> GetByIdAsync(long eventAttendanceId, CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.AppointmentEventAttendance
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.EventAttendanceId == eventAttendanceId, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    public async Task UpdateAsync(EventAttendance eventDetails, CancellationToken cancellationToken = default)
-    {
-        _dbContext.AppointmentEventAttendance.Update(eventDetails);
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

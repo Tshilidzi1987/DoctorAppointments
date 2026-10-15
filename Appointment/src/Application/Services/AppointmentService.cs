@@ -11,7 +11,7 @@ public class AppointmentService(
     IEventAttendanceRepository eventAttendanceRepository,
     IAttendeesRepository attendeesRepository) : IAppointmentService
 {
-    public async Task AddAsync(BookAppointmentDto appointmentDto, CancellationToken cancellationToken)
+    public async Task<long> AddAsync(BookAppointmentDto appointmentDto, CancellationToken cancellationToken)
     {
         try
         {
@@ -29,16 +29,19 @@ public class AppointmentService(
                 {
                     Name = attendee.Name,
                     Email = attendee.Email,
-                    Address = attendee.Address
+                    Address = attendee.Address,
+                    IsAttending = true
+
                 }, cancellationToken);
 
                 await eventAttendanceRepository.AddAsync(new EventAttendance
                 {
                     EventId = eventId.Value,
-                    AttendeeId = attendeeId,
-                    IsAttending = true
+                    AttendeeId = attendeeId
                 }, cancellationToken);
             }
+
+            return eventId.Value;
         }
         catch (ValidationException)
         {
@@ -51,7 +54,7 @@ public class AppointmentService(
         }
     }
 
-    public async Task UpdateAsync(UpdateAppointmentDto appointmentDto, CancellationToken cancellationToken)
+    public async Task<long> UpdateAsync(UpdateAppointmentDto appointmentDto, CancellationToken cancellationToken)
     {
         try
         {
@@ -71,15 +74,12 @@ public class AppointmentService(
                     AttendeeId = attendee.AttendeeId,
                     Name = attendee.Name,
                     Email = attendee.Email,
-                    Address = attendee.Address
-                }, cancellationToken);
-
-                await eventAttendanceRepository.UpdateAsync(new EventAttendance
-                {
-                    EventAttendanceId = appointmentDto.EventAttendanceId,
-                    IsAttending = appointmentDto.IsAttending
+                    Address = attendee.Address,
+                    IsAttending = attendee.IsAttending
                 }, cancellationToken);
             }
+
+            return appointmentDto.EventId;
         }
         catch (ValidationException)
         {
@@ -91,51 +91,65 @@ public class AppointmentService(
         }
     }
 
-    public async Task DeleteAsync(long eventAttendanceId, CancellationToken cancellationToken)
+    public async Task DeleteAsync(long eventId, CancellationToken cancellationToken)
     {
         try
         {
-            EventAttendance? eventAttendance = await eventAttendanceRepository.GetByIdAsync(eventAttendanceId, cancellationToken);
+            IEnumerable<EventAttendance?> eventAttendance = await eventAttendanceRepository.GetByIdAsync(eventId, cancellationToken);
 
             if (eventAttendance is not null)
             {
-                await eventRepository.DeleteAsync(eventAttendance.EventId, cancellationToken);
-                await attendeesRepository.DeleteAsync(eventAttendance.AttendeeId, cancellationToken);           
-                await eventAttendanceRepository.DeleteAsync(eventAttendanceId, cancellationToken);
+                await eventRepository.DeleteAsync(eventId, cancellationToken);
+
+                foreach (EventAttendance? attendance in eventAttendance)
+                {
+                    await attendeesRepository.DeleteAsync(attendance!.AttendeeId, cancellationToken);
+
+                    await eventAttendanceRepository.DeleteAsync(attendance!.EventAttendanceId, cancellationToken);
+                }
             }
         }
         catch (Exception ex)
         {
-            throw new ApplicationException($"An error occurred while deleting appointment with event attendance id {eventAttendanceId}.", ex);
+            throw new ApplicationException($"An error occurred while deleting appointment with event id {eventId}.", ex);
         }
     }
 
-    public async Task<AppointmentDetailsDto?> GetByIdAsync(long eventAttendanceId, CancellationToken cancellationToken)
+    public async Task<AppointmentDetailsDto?> GetByIdAsync(long eventId, CancellationToken cancellationToken)
     {
         try
         {
-            EventAttendance? eventAttendance = await eventAttendanceRepository.GetByIdAsync(eventAttendanceId, cancellationToken);
-            Events? bookingEvent = new();
-
-            if (eventAttendance is not null) 
+            // load event with attendances and attendee details
+            Events? bookingEvent = await eventRepository.GetByIdWithAttendancesAsync(eventId, cancellationToken);
+            if (bookingEvent is null)
             {
-                bookingEvent = await eventRepository.GetByIdAsync(eventAttendance.EventId, cancellationToken);
-                IEnumerable<Attendees?> attendees = await attendeesRepository.GetByIdAsync(eventAttendance.AttendeeId, cancellationToken);
-            }
+                return null;
+            }         
 
-            AppointmentDetailsDto? appointmentDetailsDto = new()
+            AppointmentDetailsDto appointmentDetailsDto = new()
             {
-                Title = bookingEvent!.Title,
+                EventId = bookingEvent.EventId,
+                Title = bookingEvent.Title,
                 Description = bookingEvent.Description,
                 StartTime = bookingEvent.StartTime,
                 EndTime = bookingEvent.EndTime,
+                AppointmentAttendees = [.. (bookingEvent.EventAttendances ?? Enumerable.Empty<EventAttendance>())
+                    .Where(ea => ea?.Attendee is not null)
+                    .Select(ea => new AppointmentAttendeeDetailsDto
+                    {
+                        AttendeeId = ea.AttendeeId,
+                        Name = ea!.Attendee!.Name,
+                        Email = ea.Attendee.Email,
+                        Address = ea.Attendee.Address,
+                        IsAttending = ea.Attendee.IsAttending
+                    })]
             };
 
             return appointmentDetailsDto;
         }
         catch (Exception ex)
         {
-            throw new ApplicationException($"An error occurred while retrieving booking appointment with event attendance id {eventAttendanceId}.", ex);
+            throw new ApplicationException($"An error occurred while retrieving booking appointment with event id {eventId}.", ex);
         }
     }
 }

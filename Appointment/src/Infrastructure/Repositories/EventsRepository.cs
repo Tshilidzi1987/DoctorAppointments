@@ -27,19 +27,14 @@ public class EventsRepository(AppDbContext dbContext) : IEventsRepository
         }
     }
 
-    public async Task<IEnumerable<Events?>> GetAllAsync(CancellationToken cancellationToken = default)
+    //load event together with attendances and attendee details
+    public async Task<Events?> GetByIdWithAttendancesAsync(long eventId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.AppointmentEvent
             .AsNoTracking()
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    public async Task<Events?> GetByIdAsync(long eventId, CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.AppointmentEvent
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.EventId == eventId, cancellationToken)
+            .Include(e => e.EventAttendances)
+            .ThenInclude(ea => ea.Attendee)
+            .FirstOrDefaultAsync(e => e.EventId == eventId, cancellationToken)
             .ConfigureAwait(false);
     }
 

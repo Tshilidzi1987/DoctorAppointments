@@ -6,4 +6,8 @@ public class Attendees
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public bool IsAttending { get; set; }
+
+    // Navigation: one Attendee -> many EventAttendance
+    public ICollection<EventAttendance> EventAttendances { get; set; } = [];
 }
