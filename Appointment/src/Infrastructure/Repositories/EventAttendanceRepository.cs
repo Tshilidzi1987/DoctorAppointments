@@ -16,8 +16,18 @@ public class EventAttendanceRepository(AppDbContext dbContext) : IEventAttendanc
 
     public async Task DeleteAsync(long eventAttendanceId, CancellationToken cancellationToken = default)
     {
-        EventAttendance attendee = new() { EventAttendanceId = eventAttendanceId };
-        _dbContext.Entry(attendee).State = EntityState.Deleted;
+        // Load the tracked entity instance first. This avoids issues with the InMemory provider
+        // and guarantees EF Core will remove the correct tracked entity.
+        EventAttendance? existing = await _dbContext.AppointmentEventAttendance
+            .FindAsync([eventAttendanceId], cancellationToken);
+
+        if (existing is null)
+        {
+            // If the row does not exist, treat as success (no-op).
+            return;
+        }
+
+        _dbContext.AppointmentEventAttendance.Remove(existing);
 
         try
         {
@@ -25,7 +35,7 @@ public class EventAttendanceRepository(AppDbContext dbContext) : IEventAttendanc
         }
         catch (DbUpdateConcurrencyException)
         {
-            // If the row does not exist (concurrent delete), treat as success (no-op).
+            // If the row does not exist at save time (concurrent delete), treat as success (no-op).
         }
     }
 
